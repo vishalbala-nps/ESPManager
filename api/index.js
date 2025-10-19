@@ -1,4 +1,3 @@
-
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
 const express = require('express');
@@ -8,12 +7,30 @@ const bcrypt = require('bcryptjs');
 const { Sequelize, DataTypes } = require('sequelize');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001; 
 const JWT_SECRET = process.env.SECRET_KEY || 'supersecretkey';
-const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10) || 10;
 
 app.use(cors());
 app.use(express.json());
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const uploadDir = path.join(__dirname, 'data');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+const upload = multer({ storage });
 
 // Initialize Sequelize with SQLite
 const sequelize = new Sequelize({
@@ -23,7 +40,7 @@ const sequelize = new Sequelize({
 
 
 // Import models
-const { User } = require('./models')(sequelize);
+const { User,Release } = require('./models')(sequelize);
 
 // Sync database
 sequelize.sync();
@@ -77,6 +94,69 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
   const user = await User.findByPk(req.user.id, { attributes: ['id', 'username'] });
   if (!user) return res.sendStatus(404);
   res.json(user);
+});
+
+// Get all releases
+app.get('/api/updates', async (req, res) => {
+  try {
+    if (req.query.latest === 'true') {
+      const release = await Release.findOne({ order: [['date', 'DESC']] });
+      if (!release) return res.status(404).json({ error: 'No releases found' });
+      return res.json([release]);
+    }
+    const releases = await Release.findAll({ order: [['date', 'DESC']] });
+    res.json(releases);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: 'Failed to fetch releases' });
+  }
+});
+
+// Add a new release
+app.post('/api/updates', authenticateToken, upload.single('file'), async (req, res) => {
+  try {
+    const { version } = req.body;
+    if (!version || !req.file) {
+      return res.status(400).json({ error: 'Version and file required' });
+    }
+    const release = await Release.create({
+      version: parseFloat(version),
+      filename: req.file.filename,
+      date: new Date(),
+    });
+    res.json(release);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add release' });
+  }
+});
+
+// Download a release file by id
+app.get('/api/updates/:id/download', async (req, res) => {
+  try {
+    const release = await Release.findByPk(req.params.id);
+    if (!release) return res.status(404).json({ error: 'Release not found' });
+    const filePath = path.join(uploadDir, release.filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+    res.download(filePath, release.filename);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to download file' });
+  }
+});
+
+// Remove a release by id
+app.delete('/api/updates/:id', authenticateToken, async (req, res) => {
+  try {
+    const release = await Release.findByPk(req.params.id);
+    if (!release) return res.status(404).json({ error: 'Release not found' });
+    const filePath = path.join(uploadDir, release.filename);
+    await release.destroy();
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove release' });
+  }
 });
 
 app.listen(PORT, () => {

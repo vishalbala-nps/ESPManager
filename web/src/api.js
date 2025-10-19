@@ -4,11 +4,12 @@ const API_BASE = 'http://localhost:3001';
 
 export async function callapi(path, { method = 'POST', body = {}, headers = {}, navigate, ...rest } = {}) {
   const token = localStorage.getItem('token');
+  const isFormData = typeof body === 'object' && body instanceof FormData;
   const config = {
     url: API_BASE + path,
     method,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...headers,
     },
     ...rest,

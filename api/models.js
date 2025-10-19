@@ -12,5 +12,19 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
   });
-  return { User };
+  const Release = sequelize.define('Release', {
+    version: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+    },
+    filename: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    date: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+  });
+  return { User, Release };
 };

@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const { Sequelize } = require('sequelize');
 const { User } = require('../models')(new Sequelize({
   dialect: 'sqlite',
-  storage: 'database.sqlite',
+  storage: '../database.sqlite',
 }));
 const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10) || 10;
 
