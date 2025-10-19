@@ -22,6 +22,8 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
 import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import Button from '@mui/material/Button';
 import mqtt from 'mqtt';
@@ -34,235 +36,298 @@ const STATUS_COLORS = {
   updating: 'blue',
 };
 
-
-function Home() {
-  const navigate = useNavigate();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [username, setUsername] = useState('');
-  const [devices, setDevices] = useState([]);
-  const [mqttLoading, setMqttLoading] = useState(true);
-  const [mqttError, setMqttError] = useState('');
-  // Dialog state for delete confirmation
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deviceToDelete, setDeviceToDelete] = useState(null);
-  // MQTT connection and device status subscription
-  const [mqttClient, setMqttClient] = useState(null);
-  useEffect(() => {
-    let ignore = false;
-    async function setupMqtt() {
-      setMqttLoading(true);
-      setMqttError('');
-      let mqttDetails = null;
-      try {
-        const data = await callapi('/api/mqtt', { method: 'GET' });
-        if (data && data.host && data.port) {
-          mqttDetails = data;
-        } else {
-          setMqttError('MQTT connection details not found.');
+  function Home() {
+    const navigate = useNavigate();
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [username, setUsername] = useState('');
+    const [devices, setDevices] = useState([]);
+    const [mqttLoading, setMqttLoading] = useState(true);
+    const [mqttError, setMqttError] = useState('');
+    // Dialog state for delete confirmation
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deviceToDelete, setDeviceToDelete] = useState(null);
+    // Update dialog state
+    const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+    const [updateDeviceId, setUpdateDeviceId] = useState(null);
+    const [releases, setReleases] = useState([]);
+    const [selectedVersion, setSelectedVersion] = useState('');
+    const [updating, setUpdating] = useState(false);
+    // MQTT connection and device status subscription
+    const [mqttClient, setMqttClient] = useState(null);
+    useEffect(() => {
+      let ignore = false;
+      async function setupMqtt() {
+        setMqttLoading(true);
+        setMqttError('');
+        let mqttDetails = null;
+        try {
+          const data = await callapi('/api/mqtt', { method: 'GET' });
+          if (data && data.host && data.port) {
+            mqttDetails = data;
+          } else {
+            setMqttError('MQTT connection details not found.');
+            setMqttLoading(false);
+            return;
+          }
+        } catch (err) {
+          setMqttError('Failed to fetch MQTT connection details from API.');
           setMqttLoading(false);
           return;
         }
-      } catch (err) {
-        setMqttError('Failed to fetch MQTT connection details from API.');
-        setMqttLoading(false);
-        return;
-      }
-      if (ignore) return;
-      const { host, port, user, pass } = mqttDetails;
-      const url = `ws://${host}:${port}`;
-      const options = {};
-      if (user && pass) {
-        options.username = user;
-        options.password = pass;
-      }
-      let client;
-      let timeoutId;
-      let connected = false;
-      try {
-        client = mqtt.connect(url, options);
-        setMqttClient(client);
-      } catch (err) {
-        setMqttError('Failed to connect to MQTT broker.');
-        setMqttLoading(false);
-        return;
-      }
-      // Timeout for connection (10 seconds)
-      timeoutId = setTimeout(() => {
-        if (!connected) {
-          setMqttError('MQTT connection timed out.');
+        if (ignore) return;
+        const { host, port, user, pass } = mqttDetails;
+        const url = `ws://${host}:${port}`;
+        const options = {};
+        if (user && pass) {
+          options.username = user;
+          options.password = pass;
+        }
+        let client;
+        let timeoutId;
+        let connected = false;
+        try {
+          client = mqtt.connect(url, options);
+          setMqttClient(client);
+        } catch (err) {
+          setMqttError('Failed to connect to MQTT broker.');
           setMqttLoading(false);
-          try { client && client.end(); } catch {}
+          return;
         }
-      }, 10000);
-      client.on('connect', () => {
-        connected = true;
-        clearTimeout(timeoutId);
-        setMqttLoading(false);
-        client.subscribe('device/status/+', (err) => {
-          if (err) setMqttError('Failed to subscribe to device/status/+');
+        // Timeout for connection (10 seconds)
+        timeoutId = setTimeout(() => {
+          if (!connected) {
+            setMqttError('MQTT connection timed out.');
+            setMqttLoading(false);
+            try { client && client.end(); } catch {}
+          }
+        }, 10000);
+        client.on('connect', () => {
+          connected = true;
+          clearTimeout(timeoutId);
+          setMqttLoading(false);
+          client.subscribe('device/status/+', (err) => {
+            if (err) setMqttError('Failed to subscribe to device/status/+');
+          });
         });
-      });
-      client.on('error', (err) => {
-        setMqttError('MQTT connection error: ' + err.message);
-        setMqttLoading(false);
-        clearTimeout(timeoutId);
-      });
-      client.on('message', (topic, message) => {
-        const match = topic.match(/^device\/status\/(.+)$/);
-        if (match) {
-          const deviceId = match[1];
-          try {
-            const data = JSON.parse(message.toString());
-            data.deviceId = deviceId;
-            setDevices((prev) => {
-              const idx = prev.findIndex((d) => d.deviceId === deviceId);
-              if (idx !== -1) {
-                const updated = [...prev];
-                updated[idx] = { ...updated[idx], ...data };
-                return updated;
-              } else {
-                return [...prev, data];
-              }
-            });
-          } catch {}
-        }
-      });
-      return () => {
-        clearTimeout(timeoutId);
-        client && client.end();
-      };
-    }
-    setupMqtt();
-    return () => { ignore = true; };
-  }, []);
-
-
-  useEffect(() => {
-    if (!localStorage.getItem('token')) {
-      navigate('/');
-    } else {
-      // Decode JWT to get username (without verifying signature)
-      try {
-        const token = localStorage.getItem('token');
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUsername(payload.username);
-      } catch {
-        setUsername('');
+        client.on('error', (err) => {
+          setMqttError('MQTT connection error: ' + err.message);
+          setMqttLoading(false);
+          clearTimeout(timeoutId);
+        });
+        client.on('message', (topic, message) => {
+          const match = topic.match(/^device\/status\/(.+)$/);
+          if (match) {
+            const deviceId = match[1];
+            try {
+              const data = JSON.parse(message.toString());
+              data.deviceId = deviceId;
+              setDevices((prev) => {
+                const idx = prev.findIndex((d) => d.deviceId === deviceId);
+                if (idx !== -1) {
+                  const updated = [...prev];
+                  updated[idx] = { ...updated[idx], ...data };
+                  return updated;
+                } else {
+                  return [...prev, data];
+                }
+              });
+            } catch {}
+          }
+        });
+        return () => {
+          clearTimeout(timeoutId);
+          client && client.end();
+        };
       }
-    }
-  }, [navigate]);
+      setupMqtt();
+      return () => { ignore = true; };
+    }, []);
 
+    // Fetch releases for update dialog
+    const fetchReleases = async () => {
+      try {
+        const data = await callapi('/api/updates', { method: 'GET' });
+        setReleases(data || []);
+      } catch {}
+    };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/');
-  };
-  return (
-    <Box sx={{ flexGrow: 1 }}>
-      <ESPAppBar
-        username={username}
-        onLogout={handleLogout}
-        drawerOpen={drawerOpen}
-        setDrawerOpen={setDrawerOpen}
-        navigate={navigate}
-      />
-  <Container maxWidth="md" sx={{ mt: 8 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Typography variant="h5" align="center" gutterBottom>
-            My Devices
-          </Typography>
-          {mqttLoading && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
-              <CircularProgress />
-            </Box>
-          )}
-          {mqttError && (
-            <Alert severity="error" sx={{ my: 2 }}>{mqttError}</Alert>
-          )}
-          {!mqttLoading && !mqttError && (
-            <TableContainer component={Paper} sx={{ mt: 2 }}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Id</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Version</TableCell>
-                    <TableCell>Options</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {devices.length === 0 ? (
+    useEffect(() => {
+      if (!localStorage.getItem('token')) {
+        navigate('/');
+      } else {
+        // Decode JWT to get username (without verifying signature)
+        try {
+          const token = localStorage.getItem('token');
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          setUsername(payload.username);
+        } catch {
+          setUsername('');
+        }
+      }
+    }, [navigate]);
+
+    const handleLogout = () => {
+      localStorage.removeItem('token');
+      navigate('/');
+    };
+    return (
+      <Box sx={{ flexGrow: 1 }}>
+        <ESPAppBar
+          username={username}
+          onLogout={handleLogout}
+          drawerOpen={drawerOpen}
+          setDrawerOpen={setDrawerOpen}
+          navigate={navigate}
+        />
+        <Container maxWidth="md" sx={{ mt: 8 }}>
+          <Paper elevation={3} sx={{ p: 4 }}>
+            <Typography variant="h5" align="center" gutterBottom>
+              My Devices
+            </Typography>
+            {mqttLoading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+                <CircularProgress />
+              </Box>
+            )}
+            {mqttError && (
+              <Alert severity="error" sx={{ my: 2 }}>{mqttError}</Alert>
+            )}
+            {!mqttLoading && !mqttError && (
+              <TableContainer component={Paper} sx={{ mt: 2 }}>
+                <Table>
+                  <TableHead>
                     <TableRow>
-                      <TableCell colSpan={4} align="center">No devices found.</TableCell>
+                      <TableCell>Id</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Version</TableCell>
+                      <TableCell>Options</TableCell>
                     </TableRow>
-                  ) : (
-                    devices.map((device) => (
-                      <TableRow key={device.deviceId}>
-                        <TableCell>{device.deviceId}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <FiberManualRecordIcon sx={{ color: STATUS_COLORS[device.status] || 'grey', fontSize: 16, mr: 1 }} />
-                            <span style={{ textTransform: 'capitalize' }}>{device.status}</span>
-                          </Box>
-                        </TableCell>
-                        <TableCell>{device.version}</TableCell>
-                        <TableCell>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => {
-                              setDeviceToDelete(device.deviceId);
-                              setDeleteDialogOpen(true);
-                            }}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                          <IconButton size="small" disabled>
-                            <SystemUpdateAltIcon />
-                          </IconButton>
-                        </TableCell>
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Delete Device</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete device <b>{deviceToDelete}</b>? This will remove its retained status from the broker.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
-            Cancel
-          </Button>
-          <Button
-            onClick={() => {
-              if (mqttClient && deviceToDelete) {
-                mqttClient.publish(`device/status/${deviceToDelete}`, '', { retain: true });
-                setDevices((prev) => prev.filter((d) => d.deviceId !== deviceToDelete));
-              }
-              setDeleteDialogOpen(false);
-              setDeviceToDelete(null);
-            }}
-            color="error"
-            variant="contained"
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+                  </TableHead>
+                  <TableBody>
+                    {devices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center">No devices found.</TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Paper>
-      </Container>
-    </Box>
-  );
-}
+                    ) : (
+                      devices.map((device) => (
+                        <TableRow key={device.deviceId}>
+                          <TableCell>{device.deviceId}</TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <FiberManualRecordIcon sx={{ color: STATUS_COLORS[device.status] || 'grey', fontSize: 16, mr: 1 }} />
+                              <span style={{ textTransform: 'capitalize' }}>{device.status}</span>
+                            </Box>
+                          </TableCell>
+                          <TableCell>{device.version}</TableCell>
+                          <TableCell>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => {
+                                setDeviceToDelete(device.deviceId);
+                                setDeleteDialogOpen(true);
+                              }}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={async () => {
+                                setUpdateDeviceId(device.deviceId);
+                                setUpdateDialogOpen(true);
+                                setSelectedVersion('');
+                                await fetchReleases();
+                              }}
+                            >
+                              <SystemUpdateAltIcon />
+                            </IconButton>
+                          </TableCell>
+                          {/* Delete Confirmation Dialog */}
+                          <Dialog
+                            open={deleteDialogOpen}
+                            onClose={() => setDeleteDialogOpen(false)}
+                          >
+                            <DialogTitle>Delete Device</DialogTitle>
+                            <DialogContent>
+                              <DialogContentText>
+                                Are you sure you want to delete device <b>{deviceToDelete}</b>? This will remove its retained status from the broker.
+                              </DialogContentText>
+                            </DialogContent>
+                            <DialogActions>
+                              <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
+                                Cancel
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  if (mqttClient && deviceToDelete) {
+                                    mqttClient.publish(`device/status/${deviceToDelete}`, '', { retain: true });
+                                    setDevices((prev) => prev.filter((d) => d.deviceId !== deviceToDelete));
+                                  }
+                                  setDeleteDialogOpen(false);
+                                  setDeviceToDelete(null);
+                                }}
+                                color="error"
+                                variant="contained"
+                              >
+                                Delete
+                              </Button>
+                            </DialogActions>
+                          </Dialog>
+                          {/* Update Dialog */}
+                          <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)}>
+                            <DialogTitle>Update Device</DialogTitle>
+                            <DialogContent>
+                              <Typography gutterBottom>Select a release version to update device <b>{updateDeviceId}</b>:</Typography>
+                              <Select
+                                fullWidth
+                                value={selectedVersion}
+                                onChange={e => setSelectedVersion(e.target.value)}
+                                displayEmpty
+                                sx={{ mt: 2 }}
+                              >
+                                <MenuItem value="" disabled>Select version</MenuItem>
+                                {releases.map(rel => (
+                                  <MenuItem key={rel.id} value={rel.version}>{rel.version}</MenuItem>
+                                ))}
+                              </Select>
+                            </DialogContent>
+                            <DialogActions>
+                              <Button onClick={() => setUpdateDialogOpen(false)} color="primary">Cancel</Button>
+                              <Button
+                                onClick={async () => {
+                                  if (mqttClient && updateDeviceId && selectedVersion) {
+                                    setUpdating(true);
+                                    mqttClient.publish(
+                                      `device/status/${updateDeviceId}`,
+                                      JSON.stringify({ action: 'update', version: String(selectedVersion) }),
+                                      { retain: false },
+                                      () => {
+                                        setUpdating(false);
+                                        setUpdateDialogOpen(false);
+                                      }
+                                    );
+                                  }
+                                }}
+                                color="primary"
+                                variant="contained"
+                                disabled={updating || !selectedVersion}
+                              >
+                                {updating ? 'Updating...' : 'Update'}
+                              </Button>
+                            </DialogActions>
+                          </Dialog>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Paper>
+        </Container>
+      </Box>
+    );
+  }
 
-export default Home;
+  export default Home;
