@@ -130,10 +130,10 @@ app.post('/api/updates', authenticateToken, upload.single('file'), async (req, r
   }
 });
 
-// Download a release file by id
-app.get('/api/updates/:id/download', async (req, res) => {
+// Download a release file by version number
+app.get('/api/updates/:version/download', async (req, res) => {
   try {
-    const release = await Release.findByPk(req.params.id);
+    const release = await Release.findOne({ where: { version: req.params.version } });
     if (!release) return res.status(404).json({ error: 'Release not found' });
     const filePath = path.join(uploadDir, release.filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
