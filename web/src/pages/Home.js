@@ -1,18 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
-import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
 import Paper from '@mui/material/Paper';
-import Avatar from '@mui/material/Avatar';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
+import ESPAppBar from '../components/ESPAppBar';
 import IconButton from '@mui/material/IconButton';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import LogoutIcon from '@mui/icons-material/Logout';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -33,17 +27,18 @@ import Button from '@mui/material/Button';
 import mqtt from 'mqtt';
 import { callapi } from '../api';
 
+
 const STATUS_COLORS = {
   online: 'green',
   offline: 'red',
   updating: 'blue',
 };
 
+
 function Home() {
   const navigate = useNavigate();
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [username, setUsername] = useState('');
-  const [anchorEl, setAnchorEl] = useState(null);
-  const open = Boolean(anchorEl);
   const [devices, setDevices] = useState([]);
   const [mqttLoading, setMqttLoading] = useState(true);
   const [mqttError, setMqttError] = useState('');
@@ -158,52 +153,20 @@ function Home() {
   }, [navigate]);
 
 
-  const handleMenu = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
   const handleLogout = () => {
     localStorage.removeItem('token');
-    handleClose();
     navigate('/');
   };
-
   return (
     <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            ESPManager
-          </Typography>
-          {username && (
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <IconButton onClick={handleMenu} color="inherit" size="large">
-                <Avatar sx={{ width: 32, height: 32, mr: 1 }}>
-                  {username.charAt(0).toUpperCase()}
-                </Avatar>
-                <Typography sx={{ color: 'white', mr: 0.5 }}>{username}</Typography>
-                <ArrowDropDownIcon sx={{ color: 'white' }} />
-              </IconButton>
-              <Menu
-                anchorEl={anchorEl}
-                open={open}
-                onClose={handleClose}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-              >
-                <MenuItem onClick={handleLogout}>
-                  <LogoutIcon fontSize="small" sx={{ mr: 1 }} /> Logout
-                </MenuItem>
-              </Menu>
-            </Box>
-          )}
-        </Toolbar>
-      </AppBar>
-      <Container maxWidth="md" sx={{ mt: 8 }}>
+      <ESPAppBar
+        username={username}
+        onLogout={handleLogout}
+        drawerOpen={drawerOpen}
+        setDrawerOpen={setDrawerOpen}
+        navigate={navigate}
+      />
+  <Container maxWidth="md" sx={{ mt: 8 }}>
         <Paper elevation={3} sx={{ p: 4 }}>
           <Typography variant="h5" align="center" gutterBottom>
             My Devices
