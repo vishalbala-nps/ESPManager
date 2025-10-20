@@ -1,4 +1,6 @@
 node_modules
 .env
 *sqlite*
-
+*bin
+.vscode
+.DS_Store
