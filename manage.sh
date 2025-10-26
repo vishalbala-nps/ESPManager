@@ -19,6 +19,7 @@ usage() {
   echo "  adduser     Add a new user to the database (prompts for credentials)."
   echo "  initdb      Initialize the database."
   echo "  shell [svc] Open a shell inside a running service (default: api)."
+  echo "  uninstall   Stop services, remove images, and prune the system."
   exit 1
 }
 
@@ -57,6 +58,24 @@ case "$1" in
     SERVICE=${2:-$API_SERVICE}
     echo "Opening a shell in the '$SERVICE' container..."
     docker-compose exec "$SERVICE" sh
+    ;;
+  uninstall)
+    echo "This will stop all services, remove their images, delete the data volume, and prune unused Docker data."
+    read -p "Are you sure you want to continue? [y/N] " confirm
+    if [[ "$confirm" != [yY] ]]; then
+      echo "Uninstall cancelled."
+      exit 0
+    fi
+    echo "Stopping services and removing images..."
+    docker-compose down --rmi all -v
+    
+    echo "Removing data directory..."
+    rm -rf ./data
+    
+    echo "Pruning unused Docker images, networks, and build cache..."
+    docker system prune -a -f
+    
+    echo "Uninstall complete."
     ;;
   *)
     usage
