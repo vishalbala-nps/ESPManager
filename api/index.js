@@ -113,8 +113,15 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 app.get('/api/updates', async (req, res) => {
   try {
     if (req.query.latest === 'true') {
-      const release = await Release.findOne({ order: [['date', 'DESC']] });
-      if (!release) return res.status(404).json({ error: 'No releases found' });
+      const { tag } = req.query;
+      if (!tag) {
+        return res.status(400).json({ error: 'Tag query parameter is required for latest release' });
+      }
+      const release = await Release.findOne({ 
+        where: { tag },
+        order: [['date', 'DESC']] 
+      });
+      if (!release) return res.status(404).json({ error: 'No releases found for this tag' });
       return res.json([release]);
     }
     const releases = await Release.findAll({ order: [['date', 'DESC']] });
@@ -128,14 +135,15 @@ app.get('/api/updates', async (req, res) => {
 // Add a new release
 app.post('/api/updates', authenticateToken, upload.single('file'), async (req, res) => {
   try {
-    const { version } = req.body;
-    if (!version || !req.file) {
-      return res.status(400).json({ error: 'Version and file required' });
+    const { version, tag } = req.body;
+    if (!version || !req.file || !tag) {
+      return res.status(400).json({ error: 'Version, file, and tag are required' });
     }
     const release = await Release.create({
       version: parseFloat(version),
       filename: req.file.filename,
       date: new Date(),
+      tag: tag,
     });
     res.json(release);
   } catch (err) {
@@ -143,10 +151,15 @@ app.post('/api/updates', authenticateToken, upload.single('file'), async (req, r
   }
 });
 
-// Download a release file by version number
-app.get('/api/updates/:version/download', async (req, res) => {
+// Download a release file by tag and version number
+app.get('/api/updates/:tag/:version/download', async (req, res) => {
   try {
-    const release = await Release.findOne({ where: { version: req.params.version } });
+    const release = await Release.findOne({ 
+      where: { 
+        tag: req.params.tag,
+        version: req.params.version 
+      } 
+    });
     if (!release) return res.status(404).json({ error: 'Release not found' });
     const filePath = path.join(uploadDir, release.filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });

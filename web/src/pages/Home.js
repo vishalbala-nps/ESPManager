@@ -49,7 +49,7 @@ function Home() {
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [updateDeviceId, setUpdateDeviceId] = useState(null);
   const [releases, setReleases] = useState([]);
-  const [selectedVersion, setSelectedVersion] = useState('');
+  const [selectedReleaseId, setSelectedReleaseId] = useState('');
   const [updating, setUpdating] = useState(false);
   // Info Modal state
   const [infoModalOpen, setInfoModalOpen] = useState(false);
@@ -186,7 +186,7 @@ function Home() {
                               onClick={async () => {
                                 setUpdateDeviceId(device.deviceId);
                                 setUpdateDialogOpen(true);
-                                setSelectedVersion('');
+                                setSelectedReleaseId('');
                                 await fetchReleases();
                               }}
                             >
@@ -252,14 +252,14 @@ function Home() {
                 <Typography gutterBottom>Select a release version to update device <b>{updateDeviceId}</b>:</Typography>
                 <Select
                   fullWidth
-                  value={selectedVersion}
-                  onChange={e => setSelectedVersion(e.target.value)}
+                  value={selectedReleaseId}
+                  onChange={e => setSelectedReleaseId(e.target.value)}
                   displayEmpty
                   sx={{ mt: 2 }}
                 >
                   <MenuItem value="" disabled>Select version</MenuItem>
                   {releases.map(rel => (
-                    <MenuItem key={rel.id} value={rel.version}>{rel.version}</MenuItem>
+                    <MenuItem key={rel.id} value={rel.id}>{`${rel.tag}/${rel.version}`}</MenuItem>
                   ))}
                 </Select>
               </DialogContent>
@@ -267,11 +267,17 @@ function Home() {
                 <Button onClick={() => setUpdateDialogOpen(false)} color="primary">Cancel</Button>
                 <Button
                   onClick={async () => {
-                    if (client && updateDeviceId && selectedVersion) {
+                    if (client && updateDeviceId && selectedReleaseId) {
+                      const release = releases.find(r => r.id === selectedReleaseId);
+                      if (!release) return;
+
                       setUpdating(true);
                       client.publish(
                         `${topics.command}/${updateDeviceId}`,
-                        JSON.stringify({ action: 'update', version: String(selectedVersion) }),
+                        JSON.stringify({ 
+                          action: 'update', 
+                          version: release.tag+"/"+String(release.version)
+                        }),
                         { retain: false },
                         () => {
                           setUpdating(false);
@@ -282,7 +288,7 @@ function Home() {
                   }}
                   color="primary"
                   variant="contained"
-                  disabled={updating || !selectedVersion}
+                  disabled={updating || !selectedReleaseId}
                 >
                   {updating ? 'Updating...' : 'Update'}
                 </Button>

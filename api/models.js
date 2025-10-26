@@ -25,6 +25,10 @@ module.exports = (sequelize) => {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
+    tag: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
   });
   return { User, Release };
 };

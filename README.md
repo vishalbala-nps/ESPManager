@@ -9,6 +9,7 @@ The system allows users to monitor device status, send commands, and manage devi
 - **Remote Device Management**: A web-based UI to remotely manage and monitor your ESP devices.
 - **Detailed Device Information**: View real-time stats for each device, including MAC address, IP, firmware version, uptime, and WiFi signal strength in a convenient modal.
 - **Over-the-Air (OTA) Updates**: Upload new firmware to your devices directly from the web interface.
+- **Version Tagging**: Group firmware releases with tags (e.g., `stable`, `beta`, `default`) for better organization and targeted updates.
 - **Configurable MQTT Topics**: Customize the base MQTT topics for status, commands, and info via environment variables for flexible integration.
 - **MQTT Console**: A built-in console to send and receive MQTT messages for real-time debugging and interaction.
 - **Dockerized**: Comes with `docker-compose.yml` for a simple and reproducible setup.
@@ -76,8 +77,8 @@ The device must **subscribe** to this topic to receive commands from the web UI.
     -   **Device Action**: The device should publish its detailed stats as a JSON payload to the `<infoTopic>/<deviceId>` topic.
 
 -   **OTA Firmware Update**
-    -   **Payload**: `{"action": "update", "version": "1.0.1"}`
-    -   **Device Action**: The device should initiate its OTA update process, downloading the firmware from the ESPManager backend.
+    -   **Payload**: `{"action": "update", "version": "default/1.0.1"}`
+    -   **Device Action**: The device should initiate its OTA update process. It must parse the `version` string to separate the tag and version number (e.g., "default/1.0.1" -> tag: "default", version: "1.0.1"). It then uses these to construct the download URL in the format `/api/updates/<tag>/<version>/download`.
 
 -   **Factory Reset (for Online Devices)**
     -   **Payload**: `{"action": "delete"}`

@@ -21,6 +21,8 @@ import Alert from '@mui/material/Alert';
 import { callapi } from '../api';
 import IconButton from '@mui/material/IconButton';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DialogContentText from '@mui/material/DialogContentText';
+
 function Releases() {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -30,6 +32,7 @@ function Releases() {
   const [error, setError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [version, setVersion] = useState('');
+  const [tag, setTag] = useState('default'); // Add state for tag
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -73,13 +76,14 @@ function Releases() {
   const handleAddRelease = async () => {
     setUploading(true);
     setUploadError('');
-    if (!version || !file) {
-      setUploadError('Version and file are required');
+    if (!version || !file || !tag) {
+      setUploadError('Version, tag, and file are required');
       setUploading(false);
       return;
     }
     const formData = new FormData();
     formData.append('version', version);
+    formData.append('tag', tag); // Append tag to form data
     formData.append('file', file);
     try {
       await callapi('/api/updates', {
@@ -89,6 +93,7 @@ function Releases() {
       });
       setDialogOpen(false);
       setVersion('');
+      setTag('default'); // Reset tag
       setFile(null);
       // Refresh releases
       const data = await callapi('/api/updates', { method: 'GET' });
@@ -140,6 +145,7 @@ function Releases() {
               <TableHead>
                 <TableRow>
                   <TableCell>Version</TableCell>
+                  <TableCell>Tag</TableCell>
                   <TableCell>Filename</TableCell>
                   <TableCell>Date</TableCell>
                   <TableCell>Options</TableCell>
@@ -148,16 +154,17 @@ function Releases() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={4} align="center">Loading...</TableCell>
+                    <TableCell colSpan={5} align="center">Loading...</TableCell>
                   </TableRow>
                 ) : releases.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} align="center">No releases found.</TableCell>
+                    <TableCell colSpan={5} align="center">No releases found.</TableCell>
                   </TableRow>
                 ) : (
                   releases.map((rel) => (
                     <TableRow key={rel.id || rel.version}>
                       <TableCell>{rel.version}</TableCell>
+                      <TableCell>{rel.tag}</TableCell>
                       <TableCell>{rel.filename}</TableCell>
                       <TableCell>{rel.date ? new Date(rel.date).toLocaleString() : ''}</TableCell>
                       <TableCell>
@@ -185,6 +192,13 @@ function Releases() {
             value={version}
             onChange={e => setVersion(e.target.value)}
           />
+          <TextField
+            label="Tag"
+            fullWidth
+            margin="normal"
+            value={tag}
+            onChange={e => setTag(e.target.value)}
+          />
           <Button
             variant="outlined"
             component="label"
@@ -211,9 +225,9 @@ function Releases() {
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogTitle>Delete Release</DialogTitle>
         <DialogContent>
-          <DialogContent>
-            Are you sure you want to delete release <b>{releaseToDelete && releaseToDelete.version}</b>?
-          </DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete release <b>{releaseToDelete && releaseToDelete.version}</b> ({releaseToDelete && releaseToDelete.tag})?
+          </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)} color="primary">Cancel</Button>
