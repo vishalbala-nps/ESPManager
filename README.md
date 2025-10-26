@@ -90,7 +90,7 @@ The device **publishes** to this topic to report its state. All status messages 
 
 -   **Online Status**
     -   **Published**: On successful connection to the MQTT broker.
-    -   **Payload**: `{"status": "online", "version": "<firmwareVersion>"}`
+    -   **Payload**: `{"status": "online", "version": "<tag>/<firmwareVersion>"}`
 
 -   **Updating Status**
     -   **Published**: Just before the firmware update process begins.
@@ -113,7 +113,7 @@ The device **publishes** to this topic in response to an `info` command.
       "deviceId": "Device1",
       "macAddress": "40:91:51:58:94:9D",
       "status": "online",
-      "firmwareVersion": "2.00",
+      "firmwareVersion": "default/2.00",
       "ipAddress": "192.168.1.21",
       "uptime": 230018,
       "wifiSSID": "MyWiFi",
