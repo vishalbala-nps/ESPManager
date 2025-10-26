@@ -1,5 +1,4 @@
-
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -39,8 +38,7 @@ function Home() {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [username, setUsername] = useState('');
-  const [devices, setDevices] = useState([]);
-  const { client, messages, loading, error, disconnect } = useContext(MQTTContext);
+  const { client, devices, loading, error, disconnect } = useContext(MQTTContext);
 
   // Dialog state for delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -52,22 +50,6 @@ function Home() {
   const [selectedVersion, setSelectedVersion] = useState('');
   const [updating, setUpdating] = useState(false);
 
-  useEffect(() => {
-    const uniqueDevices = new Map();
-    messages.forEach(({ topic, message }) => {
-      const match = topic.match(/^device\/status\/(.+)$/);
-      if (match) {
-        const deviceId = match[1];
-        try {
-          const data = JSON.parse(message);
-          data.deviceId = deviceId;
-          uniqueDevices.set(deviceId, { ...uniqueDevices.get(deviceId), ...data });
-        } catch {}
-      }
-    });
-    setDevices(Array.from(uniqueDevices.values()));
-  }, [messages]);
-
   // Fetch releases for update dialog
   const fetchReleases = async () => {
     try {
@@ -76,7 +58,7 @@ function Home() {
     } catch {}
   };
 
-  useEffect(() => {
+  useState(() => {
     if (!localStorage.getItem('token')) {
       navigate('/');
     } else {
@@ -187,8 +169,9 @@ function Home() {
                               <Button
                                 onClick={() => {
                                   if (client && deviceToDelete) {
-                                    const topic = `device/command/${deviceToDelete}`;
+                                    const topic = `device/status/${deviceToDelete}`;
                                     const message = JSON.stringify({ action: 'delete' });
+                                    console.log('Publishing to', topic, 'message', message);
                                     client.publish(topic, message);
                                   }
                                   setDeleteDialogOpen(false);

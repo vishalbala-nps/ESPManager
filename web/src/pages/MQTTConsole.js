@@ -21,16 +21,23 @@ function MQTTConsole() {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [username, setUsername] = useState('');
-  const { client, messages, error, disconnect } = useContext(MQTTContext);
+  const { client, subscribeToMessages, error, disconnect } = useContext(MQTTContext);
+  const [messages, setMessages] = useState([]);
   const [subscribedTopics, setSubscribedTopics] = useState(['device/status/#']);
   const [subscribeTopic, setSubscribeTopic] = useState('');
   const [publishTopic, setPublishTopic] = useState('');
   const [publishPayload, setPublishPayload] = useState('');
   const [showESPManagerMessages, setShowESPManagerMessages] = useState(false);
 
+  useEffect(() => {
+    const unsubscribe = subscribeToMessages((newMessage) => {
+      setMessages((prevMessages) => [newMessage, ...prevMessages]);
+    });
+    return () => unsubscribe();
+  }, [subscribeToMessages]);
+
   const displayedMessages = (showESPManagerMessages ? messages : messages.filter(msg => !msg.topic.startsWith('device/status/')))
-    .map((msg, idx) => ({ ...msg, id: `${msg.topic}-${idx}-${msg.timestamp}` })) // Add a unique id
-    .reverse();
+    .map((msg, idx) => ({ ...msg, id: `${msg.topic}-${idx}-${msg.timestamp}` })); // Add a unique id
 
   useEffect(() => {
     if (!localStorage.getItem('token')) {
@@ -162,7 +169,7 @@ function MQTTConsole() {
                     <ListItemText
                       primary={<>
                         <span style={{ fontWeight: 600, color: '#1976d2' }}>{msg.topic}</span>
-                        <span style={{ float: 'right', fontSize: '0.85em', color: '#888' }}>[{msg.timestamp.toLocaleTimeString()}]</span>
+                        <span style={{ float: 'right', fontSize: '0.85em', color: '#888' }}>[{new Date(msg.timestamp).toLocaleTimeString()}]</span>
                       </>}
                       secondary={<span style={{ color: '#333', fontFamily: 'monospace' }}>{msg.message}</span>}
                     />
