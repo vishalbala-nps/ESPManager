@@ -13,6 +13,8 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
 import DeleteIcon from '@mui/icons-material/Delete';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Switch from '@mui/material/Switch';
 import { MQTTContext } from '../context/MQTTContext';
 
 function MQTTConsole() {
@@ -24,7 +26,11 @@ function MQTTConsole() {
   const [subscribeTopic, setSubscribeTopic] = useState('');
   const [publishTopic, setPublishTopic] = useState('');
   const [publishPayload, setPublishPayload] = useState('');
-  const [consoleMessages, setConsoleMessages] = useState([]);
+  const [showESPManagerMessages, setShowESPManagerMessages] = useState(false);
+
+  const displayedMessages = (showESPManagerMessages ? messages : messages.filter(msg => !msg.topic.startsWith('device/status/')))
+    .map((msg, idx) => ({ ...msg, id: `${msg.topic}-${idx}-${msg.timestamp}` })) // Add a unique id
+    .reverse();
 
   useEffect(() => {
     if (!localStorage.getItem('token')) {
@@ -40,14 +46,6 @@ function MQTTConsole() {
     }
   }, [navigate]);
 
-  useEffect(() => {
-    const newMessages = messages.map(msg => ({
-      ...msg,
-      ts: new Date().toLocaleTimeString(),
-    }));
-    setConsoleMessages(prev => [...newMessages, ...prev]);
-  }, [messages]);
-
   const handleLogout = () => {
     disconnect();
     localStorage.removeItem('token');
@@ -58,7 +56,9 @@ function MQTTConsole() {
     if (!subscribeTopic || !client) return;
     client.subscribe(subscribeTopic, (err) => {
       if (!err) {
-        setSubscribedTopics((prev) => [...prev, subscribeTopic]);
+        if (!subscribedTopics.includes(subscribeTopic)) {
+          setSubscribedTopics((prev) => [...prev, subscribeTopic]);
+        }
       }
     });
     setSubscribeTopic('');
@@ -93,6 +93,11 @@ function MQTTConsole() {
           <Typography variant="h5" align="center" gutterBottom>
             MQTT Console
           </Typography>
+          <FormControlLabel
+            control={<Switch checked={showESPManagerMessages} onChange={(e) => setShowESPManagerMessages(e.target.checked)} />}
+            label="Show ESPManager Messages"
+            sx={{ mb: 1 }}
+          />
           <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
             <TextField
               label="Subscribe Topic"
@@ -146,21 +151,18 @@ function MQTTConsole() {
           <Divider sx={{ my: 2 }} />
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
             <Typography variant="h6" gutterBottom sx={{ flexGrow: 1 }}>Messages</Typography>
-            <IconButton color="error" onClick={() => setConsoleMessages([])}>
-              <DeleteIcon />
-            </IconButton>
           </Box>
           <Paper variant="outlined" sx={{ maxHeight: 300, overflow: 'auto', mb: 2 }}>
             <List dense>
-              {consoleMessages.length === 0 ? (
+              {displayedMessages.length === 0 ? (
                 <ListItem><ListItemText primary="No messages yet." /></ListItem>
               ) : (
-                consoleMessages.map((msg, idx) => (
-                  <ListItem key={idx} alignItems="flex-start">
+                displayedMessages.map((msg) => (
+                  <ListItem key={msg.id} alignItems="flex-start">
                     <ListItemText
                       primary={<>
                         <span style={{ fontWeight: 600, color: '#1976d2' }}>{msg.topic}</span>
-                        <span style={{ float: 'right', fontSize: '0.85em', color: '#888' }}>[{msg.ts}]</span>
+                        <span style={{ float: 'right', fontSize: '0.85em', color: '#888' }}>[{msg.timestamp.toLocaleTimeString()}]</span>
                       </>}
                       secondary={<span style={{ color: '#333', fontFamily: 'monospace' }}>{msg.message}</span>}
                     />

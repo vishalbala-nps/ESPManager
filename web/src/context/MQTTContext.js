@@ -10,7 +10,7 @@ const MQTTProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (mqttClientInstance) => {
     setLoading(true);
     setError('');
     let mqttDetails = null;
@@ -39,52 +39,27 @@ const MQTTProvider = ({ children }) => {
       options.password = pass;
     }
 
-    let mqttClient;
-    let timeoutId;
-    let connected = false;
+    const client = mqtt.connect(url, options);
+    setClient(client);
 
-    try {
-      mqttClient = mqtt.connect(url, options);
-      setClient(mqttClient);
-    } catch (err) {
-      setError('Failed to connect to MQTT broker.');
+    client.on('connect', () => {
       setLoading(false);
-      return;
-    }
-
-    timeoutId = setTimeout(() => {
-      if (!connected) {
-        setError('MQTT connection timed out.');
-        setLoading(false);
-        try { mqttClient && mqttClient.end(); } catch {}
-      }
-    }, 10000);
-
-    mqttClient.on('connect', () => {
-      connected = true;
-      clearTimeout(timeoutId);
-      setLoading(false);
-      mqttClient.subscribe('device/status/#', (err) => {
+      client.subscribe('device/status/#', (err) => {
         if (err) setError('Failed to subscribe to device status topics.');
       });
     });
 
-    mqttClient.on('error', (err) => {
+    client.on('error', (err) => {
       setError('MQTT connection error: ' + err.message);
       setLoading(false);
-      clearTimeout(timeoutId);
     });
 
-    mqttClient.on('message', (topic, message) => {
-      setMessages((prevMessages) => [...prevMessages, { topic, message: message.toString() }]);
+    client.on('message', (topic, message) => {
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        { topic, message: message.toString(), timestamp: new Date() },
+      ]);
     });
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (mqttClient) {
-        mqttClient.end();
-      }
-    };
   }, []);
 
   const disconnect = useCallback(() => {
@@ -98,13 +73,14 @@ const MQTTProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token && !client) {
-      const cleanup = connect();
-      return () => {
-        if (typeof cleanup === 'function') {
-          cleanup();
-        }
-      };
+      connect();
     }
+    // This cleanup function will be called when the component unmounts
+    return () => {
+      if (client) {
+        client.end();
+      }
+    };
   }, [client, connect]);
 
   return (
