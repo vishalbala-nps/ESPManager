@@ -1,6 +1,6 @@
 # ESPManager
 
-ESPManager is a full-stack application designed to manage and communicate with ESP8266/ESP32 devices via MQTT. It consists of a Node.js backend API, a React-based web frontend, and uses Docker for easy deployment and management.
+ESPManager is a full-stack application for managing IoT devices via MQTT. While it is primarily designed for ESP8266/ESP32 devices, it can be used to manage any device that can communicate over the MQTT protocol. The project consists of a Node.js backend API, a React-based web frontend, and uses Docker for easy deployment and management.
 
 The system allows users to monitor device status, send commands, and manage devices through a web interface.
 
@@ -77,9 +77,9 @@ chmod +x manage.sh
 
 ---
 
-## Configuring the ESP Device
+## Configuring a Device
 
-This project uses MQTT to communicate with and manage ESP devices. Your device's firmware should be configured to connect to the same MQTT broker as this application and subscribe to specific topics to receive commands.
+While this project is named ESPManager, it is platform-agnostic. Any device or application that can communicate over MQTT can be integrated. Your device's firmware should be configured to connect to the same MQTT broker as this application and follow the protocol outlined below.
 
 ### MQTT Protocol and Topics
 
@@ -100,7 +100,7 @@ Your device should subscribe to `device/status/<deviceId>` to listen for the fol
         ```json
         {"action": "update", "version": "1.0.1"}
         ```
-    -   **Action**: The device should construct a URL and attempt to download the new firmware binary from the ESPManager backend.
+    -   **Action**: The device should construct a URL and attempt to download the new firmware binary from the ESPManager backend. For this to work, the device needs its own logic to perform an HTTP download and apply the update.
     -   **URL Format**: `http://<updateServer>/api/updates/<version>/download` (where `<updateServer>` is the address of this application).
 
 #### Automatic Status Messages
@@ -119,6 +119,6 @@ To provide real-time device state to the web UI, the device should publish statu
     -   **Published**: Automatically by the MQTT broker if the device disconnects ungracefully (e.g., power loss). This should be set as the device's Last Will and Testament (LWT).
     -   **Payload**: `{"deviceId": "<deviceId>", "status": "offline", "version": "<appVersion>"}`
 
-### Simplifying with ESPManagerLibrary
+### For ESP8266/ESP32 Users: ESPManagerLibrary
 
-Implementing this MQTT protocol can be complex. To make it easier, you can use the **[ESPManagerLibrary](https://github.com/vishalbala-nps/ESPManagerLibrary)**, which handles all of this for you. It's an Arduino library designed to work seamlessly with this backend, providing a robust, callback-driven solution.
+If you are using an ESP8266 or ESP32, you can use the **[ESPManagerLibrary](https://github.com/vishalbala-nps/ESPManagerLibrary)** to simplify development. This companion library handles the entire MQTT protocol for you, providing a robust, callback-driven solution that works seamlessly with this backend.
