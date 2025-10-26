@@ -42,7 +42,7 @@ function Home() {
 
   // Dialog state for delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deviceToDelete, setDeviceToDelete] = useState(null);
+  const [deviceToDelete, setDeviceToDelete] = useState(null); // Will hold the full device object
   // Update dialog state
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [updateDeviceId, setUpdateDeviceId] = useState(null);
@@ -132,7 +132,7 @@ function Home() {
                               size="small"
                               color="error"
                               onClick={() => {
-                                setDeviceToDelete(device.deviceId);
+                                setDeviceToDelete(device); // Store the whole device object
                                 setDeleteDialogOpen(true);
                               }}
                             >
@@ -151,82 +151,6 @@ function Home() {
                               <SystemUpdateAltIcon />
                             </IconButton>
                           </TableCell>
-                          {/* Delete Confirmation Dialog */}
-                          <Dialog
-                            open={deleteDialogOpen}
-                            onClose={() => setDeleteDialogOpen(false)}
-                          >
-                            <DialogTitle>Delete Device</DialogTitle>
-                            <DialogContent>
-                              <DialogContentText>
-                                Are you sure you want to delete device <b>{deviceToDelete}</b>? This will remove its retained status from the broker.
-                              </DialogContentText>
-                            </DialogContent>
-                            <DialogActions>
-                              <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
-                                Cancel
-                              </Button>
-                              <Button
-                                onClick={() => {
-                                  if (client && deviceToDelete) {
-                                    const topic = `device/status/${deviceToDelete}`;
-                                    const message = JSON.stringify({ action: 'delete' });
-                                    console.log('Publishing to', topic, 'message', message);
-                                    client.publish(topic, message);
-                                  }
-                                  setDeleteDialogOpen(false);
-                                  setDeviceToDelete(null);
-                                }}
-                                color="error"
-                                variant="contained"
-                              >
-                                Delete
-                              </Button>
-                            </DialogActions>
-                          </Dialog>
-                          {/* Update Dialog */}
-                          <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)}>
-                            <DialogTitle>Update Device</DialogTitle>
-                            <DialogContent>
-                              <Typography gutterBottom>Select a release version to update device <b>{updateDeviceId}</b>:</Typography>
-                              <Select
-                                fullWidth
-                                value={selectedVersion}
-                                onChange={e => setSelectedVersion(e.target.value)}
-                                displayEmpty
-                                sx={{ mt: 2 }}
-                              >
-                                <MenuItem value="" disabled>Select version</MenuItem>
-                                {releases.map(rel => (
-                                  <MenuItem key={rel.id} value={rel.version}>{rel.version}</MenuItem>
-                                ))}
-                              </Select>
-                            </DialogContent>
-                            <DialogActions>
-                              <Button onClick={() => setUpdateDialogOpen(false)} color="primary">Cancel</Button>
-                              <Button
-                                onClick={async () => {
-                                  if (client && updateDeviceId && selectedVersion) {
-                                    setUpdating(true);
-                                    client.publish(
-                                      `device/status/${updateDeviceId}`,
-                                      JSON.stringify({ action: 'update', version: String(selectedVersion) }),
-                                      { retain: false },
-                                      () => {
-                                        setUpdating(false);
-                                        setUpdateDialogOpen(false);
-                                      }
-                                    );
-                                  }
-                                }}
-                                color="primary"
-                                variant="contained"
-                                disabled={updating || !selectedVersion}
-                              >
-                                {updating ? 'Updating...' : 'Update'}
-                              </Button>
-                            </DialogActions>
-                          </Dialog>
                         </TableRow>
                       ))
                     )}
@@ -234,6 +158,94 @@ function Home() {
                 </Table>
               </TableContainer>
             )}
+            {/* Delete Confirmation Dialog */}
+            <Dialog
+              open={deleteDialogOpen}
+              onClose={() => setDeleteDialogOpen(false)}
+            >
+              <DialogTitle>Delete Device</DialogTitle>
+              <DialogContent>
+                {deviceToDelete?.status === 'offline' ? (
+                  <DialogContentText>
+                    Device <b>{deviceToDelete?.deviceId}</b> is offline. It cannot be factory reset.
+                    It will be removed from this list, but will reappear if it comes back online.
+                  </DialogContentText>
+                ) : (
+                  <DialogContentText>
+                    Are you sure you want to delete device <b>{deviceToDelete?.deviceId}</b>? This will send a command to factory reset the device.
+                  </DialogContentText>
+                )}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (client && deviceToDelete) {
+                      if (deviceToDelete.status === 'offline') {
+                        // For offline devices, publish a blank retained message to remove from broker
+                        client.publish(`device/status/${deviceToDelete.deviceId}`, '', { retain: true });
+                      } else {
+                        // For online devices, send the delete command
+                        const topic = `device/status/${deviceToDelete.deviceId}`;
+                        const message = JSON.stringify({ action: 'delete' });
+                        client.publish(topic, message);
+                      }
+                    }
+                    setDeleteDialogOpen(false);
+                    setDeviceToDelete(null);
+                  }}
+                  color="error"
+                  variant="contained"
+                >
+                  Delete
+                </Button>
+              </DialogActions>
+            </Dialog>
+            {/* Update Dialog */}
+            <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)}>
+              <DialogTitle>Update Device</DialogTitle>
+              <DialogContent>
+                <Typography gutterBottom>Select a release version to update device <b>{updateDeviceId}</b>:</Typography>
+                <Select
+                  fullWidth
+                  value={selectedVersion}
+                  onChange={e => setSelectedVersion(e.target.value)}
+                  displayEmpty
+                  sx={{ mt: 2 }}
+                >
+                  <MenuItem value="" disabled>Select version</MenuItem>
+                  {releases.map(rel => (
+                    <MenuItem key={rel.id} value={rel.version}>{rel.version}</MenuItem>
+                  ))}
+                </Select>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setUpdateDialogOpen(false)} color="primary">Cancel</Button>
+                <Button
+                  onClick={async () => {
+                    if (client && updateDeviceId && selectedVersion) {
+                      setUpdating(true);
+                      client.publish(
+                        `device/status/${updateDeviceId}`,
+                        JSON.stringify({ action: 'update', version: String(selectedVersion) }),
+                        { retain: false },
+                        () => {
+                          setUpdating(false);
+                          setUpdateDialogOpen(false);
+                        }
+                      );
+                    }
+                  }}
+                  color="primary"
+                  variant="contained"
+                  disabled={updating || !selectedVersion}
+                >
+                  {updating ? 'Updating...' : 'Update'}
+                </Button>
+              </DialogActions>
+            </Dialog>
           </Paper>
         </Container>
       </Box>
