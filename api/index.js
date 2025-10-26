@@ -65,15 +65,28 @@ app.post('/api/login', async (req, res) => {
 
 // MQTT connection details endpoint
 app.get('/api/mqtt', authenticateToken, (req, res) => {
-  const { MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS } = process.env;
+  const {
+    MQTT_HOST,
+    MQTT_PORT,
+    MQTT_USERNAME,
+    MQTT_PASSWORD,
+    MQTT_STATUS_TOPIC,
+    MQTT_COMMAND_TOPIC,
+    MQTT_INFO_TOPIC
+  } = process.env;
+
   if (!MQTT_HOST || !MQTT_PORT) {
     return res.status(500).json({ error: 'MQTT connection details missing', code: 'MQTT_CONFIG_MISSING' });
   }
+
   res.json({
     host: MQTT_HOST,
     port: MQTT_PORT,
-    user: MQTT_USER,
-    pass: MQTT_PASS
+    user: MQTT_USERNAME,
+    pass: MQTT_PASSWORD,
+    statusTopic: MQTT_STATUS_TOPIC || 'device/status',
+    commandTopic: MQTT_COMMAND_TOPIC || 'device/command',
+    infoTopic: MQTT_INFO_TOPIC || 'device/info'
   });
 });
 

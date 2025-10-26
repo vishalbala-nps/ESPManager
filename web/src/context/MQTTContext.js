@@ -9,6 +9,11 @@ const MQTTProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [devices, setDevices] = useState([]);
+  const [topics, setTopics] = useState({
+    status: 'device/status',
+    command: 'device/command',
+    info: 'device/info',
+  });
   const messageListeners = useRef([]);
 
   const subscribeToMessages = useCallback((callback) => {
@@ -32,6 +37,13 @@ const MQTTProvider = ({ children }) => {
         return;
       }
 
+      // Store dynamic topics
+      setTopics({
+        status: data.statusTopic,
+        command: data.commandTopic,
+        info: data.infoTopic,
+      });
+
       const { host, port, user, pass } = data;
       const url = `ws://${host}:${port}`;
       const options = {
@@ -45,10 +57,10 @@ const MQTTProvider = ({ children }) => {
 
       newClient.on('connect', () => {
         setLoading(false);
-        newClient.subscribe('device/status/#', (err) => {
+        newClient.subscribe(`${data.statusTopic}/#`, (err) => {
           if (err) setError('Failed to subscribe to device status topics.');
         });
-        newClient.subscribe('device/info/#', (err) => {
+        newClient.subscribe(`${data.infoTopic}/#`, (err) => {
             if (err) setError('Failed to subscribe to device info topics.');
         });
       });
@@ -67,7 +79,8 @@ const MQTTProvider = ({ children }) => {
         messageListeners.current.forEach(cb => cb(newMessage));
 
         // Handle internal device list logic
-        const match = topic.match(/^device\/status\/(.+)$/);
+        const statusTopicRegex = new RegExp(`^${topics.status}/(.+)`);
+        const match = topic.match(statusTopicRegex);
         if (match) {
           const deviceId = match[1];
           setDevices(prevDevices => {
@@ -111,7 +124,7 @@ const MQTTProvider = ({ children }) => {
   }, [client, connect]);
 
   return (
-    <MQTTContext.Provider value={{ client, loading, error, devices, disconnect, connect, subscribeToMessages }}>
+    <MQTTContext.Provider value={{ client, loading, error, devices, topics, disconnect, connect, subscribeToMessages }}>
       {children}
     </MQTTContext.Provider>
   );

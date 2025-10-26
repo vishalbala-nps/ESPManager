@@ -40,7 +40,7 @@ function Home() {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [username, setUsername] = useState('');
-  const { client, devices, loading, error, disconnect, subscribeToMessages } = useContext(MQTTContext);
+  const { client, devices, loading, error, disconnect, subscribeToMessages, topics } = useContext(MQTTContext);
 
   // Dialog state for delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -62,7 +62,8 @@ function Home() {
     if (!client) return;
 
     const unsubscribe = subscribeToMessages((message) => {
-      const match = message.topic.match(/^device\/info\/(.+)$/);
+      const infoTopicRegex = new RegExp(`^${topics.info}/(.+)`);
+      const match = message.topic.match(infoTopicRegex);
       if (match && match[1] === infoDeviceId) {
         try {
           const data = JSON.parse(message.message);
@@ -164,7 +165,7 @@ function Home() {
                                 setDeviceInfo(null);
                                 setInfoLoading(true);
                                 setInfoModalOpen(true);
-                                client.publish(`device/status/${device.deviceId}`, JSON.stringify({ action: 'info' }));
+                                client.publish(`${topics.command}/${device.deviceId}`, JSON.stringify({ action: 'info' }));
                               }}
                             >
                               <InfoIcon />
@@ -226,10 +227,10 @@ function Home() {
                     if (client && deviceToDelete) {
                       if (deviceToDelete.status === 'offline') {
                         // For offline devices, publish a blank retained message to remove from broker
-                        client.publish(`device/status/${deviceToDelete.deviceId}`, '', { retain: true });
+                        client.publish(`${topics.status}/${deviceToDelete.deviceId}`, '', { retain: true });
                       } else {
                         // For online devices, send the delete command
-                        const topic = `device/status/${deviceToDelete.deviceId}`;
+                        const topic = `${topics.command}/${deviceToDelete.deviceId}`;
                         const message = JSON.stringify({ action: 'delete' });
                         client.publish(topic, message);
                       }
@@ -269,7 +270,7 @@ function Home() {
                     if (client && updateDeviceId && selectedVersion) {
                       setUpdating(true);
                       client.publish(
-                        `device/status/${updateDeviceId}`,
+                        `${topics.command}/${updateDeviceId}`,
                         JSON.stringify({ action: 'update', version: String(selectedVersion) }),
                         { retain: false },
                         () => {
