@@ -48,6 +48,9 @@ const MQTTProvider = ({ children }) => {
         newClient.subscribe('device/status/#', (err) => {
           if (err) setError('Failed to subscribe to device status topics.');
         });
+        newClient.subscribe('device/info/#', (err) => {
+            if (err) setError('Failed to subscribe to device info topics.');
+        });
       });
 
       newClient.on('error', (err) => {

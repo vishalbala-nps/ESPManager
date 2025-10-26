@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -25,8 +25,10 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import Button from '@mui/material/Button';
+import InfoIcon from '@mui/icons-material/Info';
 import { callapi } from '../api';
 import { MQTTContext } from '../context/MQTTContext';
+import DeviceInfoModal from '../components/DeviceInfoModal';
 
 const STATUS_COLORS = {
   online: 'green',
@@ -38,7 +40,7 @@ function Home() {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [username, setUsername] = useState('');
-  const { client, devices, loading, error, disconnect } = useContext(MQTTContext);
+  const { client, devices, loading, error, disconnect, subscribeToMessages } = useContext(MQTTContext);
 
   // Dialog state for delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -49,6 +51,32 @@ function Home() {
   const [releases, setReleases] = useState([]);
   const [selectedVersion, setSelectedVersion] = useState('');
   const [updating, setUpdating] = useState(false);
+  // Info Modal state
+  const [infoModalOpen, setInfoModalOpen] = useState(false);
+  const [deviceInfo, setDeviceInfo] = useState(null);
+  const [infoLoading, setInfoLoading] = useState(false);
+  const [infoDeviceId, setInfoDeviceId] = useState(null);
+
+
+  useEffect(() => {
+    if (!client) return;
+
+    const unsubscribe = subscribeToMessages((message) => {
+      const match = message.topic.match(/^device\/info\/(.+)$/);
+      if (match && match[1] === infoDeviceId) {
+        try {
+          const data = JSON.parse(message.message);
+          setDeviceInfo(data);
+          setInfoLoading(false);
+        } catch (e) {
+          console.error("Failed to parse device info message", e);
+          setInfoLoading(false);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [client, subscribeToMessages, infoDeviceId]);
 
   // Fetch releases for update dialog
   const fetchReleases = async () => {
@@ -128,6 +156,19 @@ function Home() {
                           </TableCell>
                           <TableCell>{device.version}</TableCell>
                           <TableCell>
+                            <IconButton
+                              size="small"
+                              color="info"
+                              onClick={() => {
+                                setInfoDeviceId(device.deviceId);
+                                setDeviceInfo(null);
+                                setInfoLoading(true);
+                                setInfoModalOpen(true);
+                                client.publish(`device/status/${device.deviceId}`, JSON.stringify({ action: 'info' }));
+                              }}
+                            >
+                              <InfoIcon />
+                            </IconButton>
                             <IconButton
                               size="small"
                               color="error"
@@ -248,6 +289,12 @@ function Home() {
             </Dialog>
           </Paper>
         </Container>
+        <DeviceInfoModal
+          open={infoModalOpen}
+          onClose={() => setInfoModalOpen(false)}
+          deviceInfo={deviceInfo}
+          loading={infoLoading}
+        />
       </Box>
     );
   }
