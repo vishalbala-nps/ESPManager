@@ -187,8 +187,9 @@ function Home() {
                               <Button
                                 onClick={() => {
                                   if (client && deviceToDelete) {
-                                    client.publish(`device/status/${deviceToDelete}`, '', { retain: true });
-                                    setDevices((prev) => prev.filter((d) => d.deviceId !== deviceToDelete));
+                                    const topic = `device/command/${deviceToDelete}`;
+                                    const message = JSON.stringify({ action: 'delete' });
+                                    client.publish(topic, message);
                                   }
                                   setDeleteDialogOpen(false);
                                   setDeviceToDelete(null);
