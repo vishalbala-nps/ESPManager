@@ -167,6 +167,9 @@ const STATUS_COLORS = {
     }, [navigate]);
 
     const handleLogout = () => {
+      if (mqttClient) {
+        mqttClient.end();
+      }
       localStorage.removeItem('token');
       navigate('/');
     };

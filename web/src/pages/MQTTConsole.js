@@ -101,6 +101,9 @@ function MQTTConsole() {
     // ...existing code...
 
   const handleLogout = () => {
+    if (mqttClient) {
+      mqttClient.end();
+    }
     localStorage.removeItem('token');
     navigate('/');
   };
