@@ -33,21 +33,18 @@ The system allows users to monitor device status, send commands, and manage devi
     ```
     *This step is mandatory. The application will not start without a configured `.env` file.*
 
-3.  **Run the installation script:**
-    This script builds the Docker containers, initializes the database, and prompts you to create an admin user.
+3.  **Run the installation command:**
+    Make the management script executable and run the `install` command. This will build the Docker containers, initialize the database, and prompt you to create an admin user.
     ```bash
-    chmod +x install.sh
-    ./install.sh
+    chmod +x manage.sh
+    ./manage.sh install
     ```
 
-Once the installation is complete, you can access the web interface at `http://localhost:8080`.
+Once the installation is complete, you can access the web interface at `http://localhost`.
 
-### Usage (Post-Installation)
+### Management
 
-After installation, you can use the `manage.sh` script to control the application. Make sure it's executable:
-```bash
-chmod +x manage.sh
-```
+After the initial installation, you can use the `manage.sh` script to control the application.
 
 -   **Start the application:**
     ```bash
@@ -66,7 +63,7 @@ chmod +x manage.sh
 
 -   **Add a new user:**
     ```bash
-    ./manage.sh adduser <username> <password>
+    ./manage.sh adduser
     ```
     
 -   **Uninstall the application:**

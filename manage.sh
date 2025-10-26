@@ -10,9 +10,10 @@ API_SERVICE="api"
 
 # --- Helper Functions ---
 usage() {
-  echo "Usage: $0 {up|down|logs|adduser|initdb|shell}"
+  echo "Usage: $0 {install|up|down|logs|adduser|initdb|shell|uninstall}"
   echo
   echo "Commands:"
+  echo "  install     Run the first-time installation for the project."
   echo "  up          Build and start all services in the background."
   echo "  down        Stop and remove all services."
   echo "  logs [svc]  Follow logs for all services or a specific one (e.g., api, web)."
@@ -25,6 +26,47 @@ usage() {
 
 # --- Main Commands ---
 case "$1" in
+  install)
+    echo "Running first-time installation..."
+
+    # Check for Docker
+    if ! command -v docker &> /dev/null; then
+        echo "Docker could not be found. Please install Docker to continue."
+        exit 1
+    fi
+
+    # Check for Docker Compose
+    if ! command -v docker-compose &> /dev/null; then
+        echo "Docker Compose could not be found. Please install Docker Compose to continue."
+        exit 1
+    fi
+
+    # Check if .env file exists
+    if [ ! -f .env ]; then
+        echo "ERROR: .env file not found."
+        echo "Please copy .env.example to .env and configure it before running this script."
+        exit 1
+    fi
+
+    echo "Building and starting services..."
+    docker-compose up --build -d
+
+    echo "Initializing the database..."
+    docker-compose exec "$API_SERVICE" node scripts/initDB.js
+
+    echo "Adding a new user..."
+    read -p "Enter username: " username
+    read -s -p "Enter password: " password
+    echo
+    if [ -z "$username" ] || [ -z "$password" ]; then
+      echo "Error: Username and password cannot be empty."
+      exit 1
+    fi
+    docker-compose exec "$API_SERVICE" node scripts/addUser.js "$username" "$password"
+
+    echo "Setup complete! Your application is running."
+    echo "You can access the web interface at http://localhost"
+    ;;
   up)
     echo "Building and starting services..."
     docker-compose up --build -d
