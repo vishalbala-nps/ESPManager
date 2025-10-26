@@ -65,7 +65,7 @@ function MQTTConsole() {
   };
 
   const handleUnsubscribe = (topic) => {
-    if (!client) return;
+    if (!client || topic === 'device/status/#') return;
     client.unsubscribe(topic, (err) => {
       if (!err) {
         setSubscribedTopics((prev) => prev.filter((t) => t !== topic));
@@ -109,7 +109,12 @@ function MQTTConsole() {
             <List dense>
               {subscribedTopics.map(topic => (
                 <ListItem key={topic} secondaryAction={
-                  <IconButton edge="end" aria-label="delete" onClick={() => handleUnsubscribe(topic)}>
+                  <IconButton 
+                    edge="end" 
+                    aria-label="delete" 
+                    onClick={() => handleUnsubscribe(topic)}
+                    disabled={topic === 'device/status/#'}
+                  >
                     <DeleteIcon />
                   </IconButton>
                 }>
