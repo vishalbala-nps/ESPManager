@@ -26,6 +26,11 @@ import Select from '@mui/material/Select';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import Button from '@mui/material/Button';
 import InfoIcon from '@mui/icons-material/Info';
+import Checkbox from '@mui/material/Checkbox';
+import ListItemText from '@mui/material/ListItemText';
+import OutlinedInput from '@mui/material/OutlinedInput';
+import InputLabel from '@mui/material/InputLabel';
+import FormControl from '@mui/material/FormControl';
 import { callapi } from '../api';
 import { MQTTContext } from '../context/MQTTContext';
 import DeviceInfoModal from '../components/DeviceInfoModal';
@@ -56,6 +61,12 @@ function Home() {
   const [deviceInfo, setDeviceInfo] = useState(null);
   const [infoLoading, setInfoLoading] = useState(false);
   const [infoDeviceId, setInfoDeviceId] = useState(null);
+
+  // Bulk Update Dialog state
+  const [bulkUpdateDialogOpen, setBulkUpdateDialogOpen] = useState(false);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState([]);
+  const [selectedBulkReleaseId, setSelectedBulkReleaseId] = useState('');
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
 
   useEffect(() => {
@@ -118,9 +129,22 @@ function Home() {
         />
         <Container maxWidth="md" sx={{ mt: 8 }}>
           <Paper elevation={3} sx={{ p: 4 }}>
-            <Typography variant="h5" align="center" gutterBottom>
-              My Devices
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h5" align="center">
+                My Devices
+              </Typography>
+              <Button
+                variant="contained"
+                onClick={async () => {
+                  await fetchReleases();
+                  setSelectedDeviceIds([]);
+                  setSelectedBulkReleaseId('');
+                  setBulkUpdateDialogOpen(true);
+                }}
+              >
+                Bulk Update
+              </Button>
+            </Box>
             {loading && (
               <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
                 <CircularProgress />
@@ -291,6 +315,74 @@ function Home() {
                   disabled={updating || !selectedReleaseId}
                 >
                   {updating ? 'Updating...' : 'Update'}
+                </Button>
+              </DialogActions>
+            </Dialog>
+            {/* Bulk Update Dialog */}
+            <Dialog open={bulkUpdateDialogOpen} onClose={() => setBulkUpdateDialogOpen(false)} fullWidth>
+              <DialogTitle>Bulk Device Update</DialogTitle>
+              <DialogContent>
+                <Typography gutterBottom>Select devices to update (only online devices are shown):</Typography>
+                <FormControl fullWidth sx={{ mt: 2 }}>
+                  <InputLabel>Devices</InputLabel>
+                  <Select
+                    multiple
+                    value={selectedDeviceIds}
+                    onChange={(e) => setSelectedDeviceIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                    input={<OutlinedInput label="Devices" />}
+                    renderValue={(selected) => selected.join(', ')}
+                  >
+                    {devices.filter(d => d.status === 'online').map((device) => (
+                      <MenuItem key={device.deviceId} value={device.deviceId}>
+                        <Checkbox checked={selectedDeviceIds.indexOf(device.deviceId) > -1} />
+                        <ListItemText primary={device.deviceId} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <Typography gutterBottom sx={{ mt: 3 }}>Select a release version:</Typography>
+                <Select
+                  fullWidth
+                  value={selectedBulkReleaseId}
+                  onChange={e => setSelectedBulkReleaseId(e.target.value)}
+                  displayEmpty
+                  sx={{ mt: 2 }}
+                >
+                  <MenuItem value="" disabled>Select version</MenuItem>
+                  {releases.map(rel => (
+                    <MenuItem key={rel.id} value={rel.id}>{`${rel.tag}/${rel.version}`}</MenuItem>
+                  ))}
+                </Select>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setBulkUpdateDialogOpen(false)} color="primary">Cancel</Button>
+                <Button
+                  onClick={() => {
+                    if (client && selectedDeviceIds.length > 0 && selectedBulkReleaseId) {
+                      const release = releases.find(r => r.id === selectedBulkReleaseId);
+                      if (!release) return;
+
+                      setBulkUpdating(true);
+                      selectedDeviceIds.forEach(deviceId => {
+                        client.publish(
+                          `${topics.command}/${deviceId}`,
+                          JSON.stringify({
+                            action: 'update',
+                            version: `${release.tag}/${String(release.version)}`
+                          }),
+                          { retain: false }
+                        );
+                      });
+                      setBulkUpdating(false);
+                      setBulkUpdateDialogOpen(false);
+                    }
+                  }}
+                  color="primary"
+                  variant="contained"
+                  disabled={bulkUpdating || selectedDeviceIds.length === 0 || !selectedBulkReleaseId}
+                >
+                  {bulkUpdating ? 'Updating...' : 'Update Devices'}
                 </Button>
               </DialogActions>
             </Dialog>
