@@ -14,6 +14,13 @@ then
     exit
 fi
 
+# Check if .env file exists
+if [ ! -f .env ]; then
+    echo "ERROR: .env file not found."
+    echo "Please copy .env.example to .env and configure it before running this script."
+    exit 1
+fi
+
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
