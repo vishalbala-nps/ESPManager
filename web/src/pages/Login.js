@@ -1,5 +1,5 @@
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useContext } from 'react';
 import { callapi } from '../api';
 import { useNavigate } from 'react-router-dom';
 import AppBar from '@mui/material/AppBar';
@@ -10,13 +10,14 @@ import Container from '@mui/material/Container';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
-
+import { MQTTContext } from '../context/MQTTContext';
 
 function Login() {
   const usernameRef = useRef();
   const passwordRef = useRef();
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { connect } = useContext(MQTTContext);
 
   useEffect(() => {
     if (localStorage.getItem('token')) {
@@ -30,17 +31,18 @@ function Login() {
     const password = passwordRef.current.value;
     setError('');
     try {
-        const data = await callapi('/api/login', { body: { username, password }, navigate });
-            if (data && data.token) {
-                localStorage.setItem('token', data.token);
-                navigate('/home');
-            } else {
-                setError('Invalid username or password');
-            }
-            } catch (err) {
-            setError('Invalid username or password');
-            }
-        };
+      const data = await callapi('/api/login', { body: { username, password }, navigate });
+      if (data && data.token) {
+        localStorage.setItem('token', data.token);
+        await connect();
+        navigate('/home');
+      } else {
+        setError('Invalid username or password');
+      }
+    } catch (err) {
+      setError('Invalid username or password');
+    }
+  };
 
   return (
     <Box sx={{ flexGrow: 1 }}>

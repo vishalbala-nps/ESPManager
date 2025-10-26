@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -26,9 +26,8 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import Button from '@mui/material/Button';
-import mqtt from 'mqtt';
 import { callapi } from '../api';
-
+import { MQTTContext } from '../context/MQTTContext';
 
 const STATUS_COLORS = {
   online: 'green',
@@ -36,143 +35,67 @@ const STATUS_COLORS = {
   updating: 'blue',
 };
 
-  function Home() {
-    const navigate = useNavigate();
-    const [drawerOpen, setDrawerOpen] = useState(false);
-    const [username, setUsername] = useState('');
-    const [devices, setDevices] = useState([]);
-    const [mqttLoading, setMqttLoading] = useState(true);
-    const [mqttError, setMqttError] = useState('');
-    // Dialog state for delete confirmation
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [deviceToDelete, setDeviceToDelete] = useState(null);
-    // Update dialog state
-    const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-    const [updateDeviceId, setUpdateDeviceId] = useState(null);
-    const [releases, setReleases] = useState([]);
-    const [selectedVersion, setSelectedVersion] = useState('');
-    const [updating, setUpdating] = useState(false);
-    // MQTT connection and device status subscription
-    const [mqttClient, setMqttClient] = useState(null);
-    useEffect(() => {
-      let ignore = false;
-      async function setupMqtt() {
-        setMqttLoading(true);
-        setMqttError('');
-        let mqttDetails = null;
-        try {
-          const data = await callapi('/api/mqtt', { method: 'GET' });
-          if (data && data.host && data.port) {
-            mqttDetails = data;
-          } else {
-            setMqttError('MQTT connection details not found.');
-            setMqttLoading(false);
-            return;
-          }
-        } catch (err) {
-          setMqttError('Failed to fetch MQTT connection details from API.');
-          setMqttLoading(false);
-          return;
-        }
-        if (ignore) return;
-        const { host, port, user, pass } = mqttDetails;
-        const url = `ws://${host}:${port}`;
-        const options = {};
-        if (user && pass) {
-          options.username = user;
-          options.password = pass;
-        }
-        let client;
-        let timeoutId;
-        let connected = false;
-        try {
-          client = mqtt.connect(url, options);
-          setMqttClient(client);
-        } catch (err) {
-          setMqttError('Failed to connect to MQTT broker.');
-          setMqttLoading(false);
-          return;
-        }
-        // Timeout for connection (10 seconds)
-        timeoutId = setTimeout(() => {
-          if (!connected) {
-            setMqttError('MQTT connection timed out.');
-            setMqttLoading(false);
-            try { client && client.end(); } catch {}
-          }
-        }, 10000);
-        client.on('connect', () => {
-          connected = true;
-          clearTimeout(timeoutId);
-          setMqttLoading(false);
-          client.subscribe('device/status/+', (err) => {
-            if (err) setMqttError('Failed to subscribe to device/status/+');
-          });
-        });
-        client.on('error', (err) => {
-          setMqttError('MQTT connection error: ' + err.message);
-          setMqttLoading(false);
-          clearTimeout(timeoutId);
-        });
-        client.on('message', (topic, message) => {
-          const match = topic.match(/^device\/status\/(.+)$/);
-          if (match) {
-            const deviceId = match[1];
-            try {
-              const data = JSON.parse(message.toString());
-              data.deviceId = deviceId;
-              setDevices((prev) => {
-                const idx = prev.findIndex((d) => d.deviceId === deviceId);
-                if (idx !== -1) {
-                  const updated = [...prev];
-                  updated[idx] = { ...updated[idx], ...data };
-                  return updated;
-                } else {
-                  return [...prev, data];
-                }
-              });
-            } catch {}
-          }
-        });
-        return () => {
-          clearTimeout(timeoutId);
-          client && client.end();
-        };
-      }
-      setupMqtt();
-      return () => { ignore = true; };
-    }, []);
+function Home() {
+  const navigate = useNavigate();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [username, setUsername] = useState('');
+  const [devices, setDevices] = useState([]);
+  const { client, messages, loading, error, disconnect } = useContext(MQTTContext);
 
-    // Fetch releases for update dialog
-    const fetchReleases = async () => {
-      try {
-        const data = await callapi('/api/updates', { method: 'GET' });
-        setReleases(data || []);
-      } catch {}
-    };
+  // Dialog state for delete confirmation
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deviceToDelete, setDeviceToDelete] = useState(null);
+  // Update dialog state
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [updateDeviceId, setUpdateDeviceId] = useState(null);
+  const [releases, setReleases] = useState([]);
+  const [selectedVersion, setSelectedVersion] = useState('');
+  const [updating, setUpdating] = useState(false);
 
-    useEffect(() => {
-      if (!localStorage.getItem('token')) {
-        navigate('/');
-      } else {
-        // Decode JWT to get username (without verifying signature)
+  useEffect(() => {
+    const uniqueDevices = new Map();
+    messages.forEach(({ topic, message }) => {
+      const match = topic.match(/^device\/status\/(.+)$/);
+      if (match) {
+        const deviceId = match[1];
         try {
-          const token = localStorage.getItem('token');
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          setUsername(payload.username);
-        } catch {
-          setUsername('');
-        }
+          const data = JSON.parse(message);
+          data.deviceId = deviceId;
+          uniqueDevices.set(deviceId, { ...uniqueDevices.get(deviceId), ...data });
+        } catch {}
       }
-    }, [navigate]);
+    });
+    setDevices(Array.from(uniqueDevices.values()));
+  }, [messages]);
 
-    const handleLogout = () => {
-      if (mqttClient) {
-        mqttClient.end();
-      }
-      localStorage.removeItem('token');
+  // Fetch releases for update dialog
+  const fetchReleases = async () => {
+    try {
+      const data = await callapi('/api/updates', { method: 'GET' });
+      setReleases(data || []);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!localStorage.getItem('token')) {
       navigate('/');
-    };
+    } else {
+      // Decode JWT to get username (without verifying signature)
+      try {
+        const token = localStorage.getItem('token');
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setUsername(payload.username);
+      } catch {
+        setUsername('');
+      }
+    }
+  }, [navigate]);
+
+  const handleLogout = () => {
+    disconnect();
+    localStorage.removeItem('token');
+    navigate('/');
+  };
     return (
       <Box sx={{ flexGrow: 1 }}>
         <ESPAppBar
@@ -187,15 +110,15 @@ const STATUS_COLORS = {
             <Typography variant="h5" align="center" gutterBottom>
               My Devices
             </Typography>
-            {mqttLoading && (
+            {loading && (
               <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
                 <CircularProgress />
               </Box>
             )}
-            {mqttError && (
-              <Alert severity="error" sx={{ my: 2 }}>{mqttError}</Alert>
+            {error && (
+              <Alert severity="error" sx={{ my: 2 }}>{error}</Alert>
             )}
-            {!mqttLoading && !mqttError && (
+            {!loading && !error && (
               <TableContainer component={Paper} sx={{ mt: 2 }}>
                 <Table>
                   <TableHead>
@@ -263,8 +186,8 @@ const STATUS_COLORS = {
                               </Button>
                               <Button
                                 onClick={() => {
-                                  if (mqttClient && deviceToDelete) {
-                                    mqttClient.publish(`device/status/${deviceToDelete}`, '', { retain: true });
+                                  if (client && deviceToDelete) {
+                                    client.publish(`device/status/${deviceToDelete}`, '', { retain: true });
                                     setDevices((prev) => prev.filter((d) => d.deviceId !== deviceToDelete));
                                   }
                                   setDeleteDialogOpen(false);
@@ -299,9 +222,9 @@ const STATUS_COLORS = {
                               <Button onClick={() => setUpdateDialogOpen(false)} color="primary">Cancel</Button>
                               <Button
                                 onClick={async () => {
-                                  if (mqttClient && updateDeviceId && selectedVersion) {
+                                  if (client && updateDeviceId && selectedVersion) {
                                     setUpdating(true);
-                                    mqttClient.publish(
+                                    client.publish(
                                       `device/status/${updateDeviceId}`,
                                       JSON.stringify({ action: 'update', version: String(selectedVersion) }),
                                       { retain: false },
