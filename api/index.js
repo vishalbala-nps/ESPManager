@@ -35,7 +35,7 @@ const upload = multer({ storage });
 // Initialize Sequelize with SQLite
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: 'database.sqlite',
+  storage: process.env.DB_STORAGE || 'data/database.sqlite',
 });
 
 

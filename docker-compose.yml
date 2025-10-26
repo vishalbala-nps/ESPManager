@@ -1,0 +1,26 @@
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: api
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/usr/src/app/data
+    environment:
+      - DB_STORAGE=/usr/src/app/data/database.sqlite
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: web
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: unless-stopped

@@ -6,14 +6,20 @@ const bcrypt = require('bcryptjs');
 const { Sequelize } = require('sequelize');
 const { User } = require('../models')(new Sequelize({
   dialect: 'sqlite',
-  storage: '../database.sqlite',
+  storage: process.env.DB_STORAGE || 'data/database.sqlite',
 }));
 const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10) || 10;
 
 (async () => {
   try {
-    const username = prompt('Enter username: ');
-    const password = prompt('Enter password: ', { echo: '' });
+    const username = process.argv[2];
+    const password = process.argv[3];
+
+    if (!username || !password) {
+      console.log('Usage: node addUser.js <username> <password>');
+      process.exit(1);
+    }
+
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     await User.create({ username, password: hashedPassword });
     console.log('User added successfully!');
