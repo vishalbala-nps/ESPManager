@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:3001';
+const API_BASE = ""
 
 export async function callapi(path, { method = 'POST', body = {}, headers = {}, navigate, ...rest } = {}) {
   const token = localStorage.getItem('token');

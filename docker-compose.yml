@@ -1,5 +1,6 @@
 services:
   api:
+    image: espmanager-api
     build:
       context: ./api
       dockerfile: Dockerfile
@@ -9,12 +10,13 @@ services:
     volumes:
       - ./data:/usr/src/app/data
     environment:
-      - DB_STORAGE=/usr/src/app/data/database.sqlite
+      - DB_STORAGE=/usr/src/app/data/database/database.sqlite
     env_file:
       - .env
     restart: unless-stopped
 
   web:
+    image: espmanager-web
     build:
       context: ./web
       dockerfile: Dockerfile
